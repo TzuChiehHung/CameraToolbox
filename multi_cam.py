@@ -79,12 +79,13 @@ class RetrieveFrame(threading.Thread):
 
 if __name__ == '__main__':
 
-    # camera thread list
+    # camera list
     cam_info = CameraInfo()
     cam_info.add_camera(name='camera_1', ip='192.168.1.14', maker='xm')
     cam_info.add_camera(name='camera_2', ip='192.168.1.15', maker='hik')
     print cam_info.list
-    
+
+    # camera threads
     cam_threads = list()
     for i in cam_info.list.index:
         cam_threads.append(IPCameraStream(
@@ -92,11 +93,13 @@ if __name__ == '__main__':
             ip=cam_info.list['ip'][i],
             maker=cam_info.list['maker'][i]))
 
+    # retrieve threads
     retrieve_threads = list()
     table_lock = threading.Lock()
     for i in xrange(2):
         retrieve_threads.append(RetrieveFrame(name='retrieve_{}'.format(i+1), lock=table_lock, cam_info=cam_info, cam_threads=cam_threads,))
 
+    # initial camera/retrieve threads
     for cam in cam_threads:
         cam.start()
 
@@ -105,6 +108,7 @@ if __name__ == '__main__':
 
     time.sleep(3)
 
+    # stop camera/retrieve threads
     for cam in cam_threads:
         cam.stop = True
 

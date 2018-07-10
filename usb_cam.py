@@ -6,17 +6,18 @@ from time import time
 
 def main(args):
 
-    if args.maker == 'xm':
-        url = 'rtsp://{}:554/user=admin&password=&channel=1&stream=0.sdp?'.format(args.ip)
-    elif args.maker == 'hik':
-        url = 'rtsp://admin:hk888888@{}:554/Streaming/Channels/001'.format(args.ip)
-    else:
-        print 'please select correct device maker:'
-        print '\t xm:\t XiongMai Tech'
-        print '\t hik:\t HIKvision'
-        return
+    cam = cv2.VideoCapture(args.device)
 
-    cam = cv2.VideoCapture(url)
+    if args.codec == 'YUY2':
+        cam.set(cv2.CAP_PROP_FOURCC, 844715353.0)
+    elif args.codec == 'MJPG':
+        cam.set(cv2.CAP_PROP_FOURCC, 0x47504A4D)
+    else:
+        print 'use default codec: YUY2'
+
+    if args.resolution:
+        cam.set(cv2.CAP_PROP_FRAME_WIDTH, args.resolution[0])
+        cam.set(cv2.CAP_PROP_FRAME_HEIGHT,args.resolution[1])
 
     frame_count = 0
     init_time = time()
@@ -44,7 +45,7 @@ def main(args):
             # Show the resulting frame
             if args.visual:
                 frame = cv2.resize(frame, (0, 0), fx=args.scale, fy=args.scale)
-                cv2.imshow(args.ip, frame)
+                cv2.imshow('/dev/video{}'.format(args.device), frame)
 
                 if cv2.waitKey(1) == ord('q'):
                     break
@@ -58,9 +59,10 @@ def main(args):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('ip', help='camera ip')
-    parser.add_argument('-m', '--maker', help='device maker: [xm]/hk', default='xm')
-    parser.add_argument('-v', '--visual', action='store_true', help='show image frame')
+    parser.add_argument('-d', '--device', help='device number: /dev/video#', default=0)
+    parser.add_argument('-c', '--codec', help='codec: MJPG/[YUY2]', default='YUY2')
+    parser.add_argument('-v', '--visual', action='store_true', dest='visual', help='Show image frame')
+    parser.add_argument('-r', '--resolution', nargs='+', type=float, help='resolution: w, h')
     parser.add_argument('-s', '--scale', type=float, help='output frame scale: [0.25]', default=0.25)
 
     args = parser.parse_args()
