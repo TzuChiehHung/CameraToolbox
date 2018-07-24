@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
+from argparse import ArgumentParser
 import threading
+import Queue
 import cv2
 import time
 import random
@@ -38,7 +40,6 @@ class IPCameraStream(threading.Thread):
 
     def run(self):
         while not self.stop:
-            # print '{}: grab frame'.format(self.name)
             self.cam.grab()
 
     def read(self):
@@ -46,46 +47,39 @@ class IPCameraStream(threading.Thread):
 
 class RetrieveFrame(threading.Thread):
 
-    def __init__(self, name, lock, cam_info, cam_threads):
+    def __init__(self, name, lock, cam_info, cam_threads, output_queue=None):
         super(RetrieveFrame,  self).__init__(name=name)
         self.daemon =True
         self.lock = lock
         self.cam_threads = cam_threads
         self.stop = False
         self.cam_info = cam_info
+        self.output = output_queue
 
     def run(self):
         while not self.stop:
             with self.lock:
                 idx = self.cam_info.list['timestamp'].idxmin()
-                print '{}: try {} @ {}'.format(self.name, self.cam_info.list['name'][idx], time.time())
                 ret, frame = self.cam_threads[idx].read()
                 if ret:
                     self.cam_info.list.at[idx, 'timestamp'] = time.time()
-                    print '{}: got {} @ {:.6f}'.format(self.name, self.cam_info.list['name'][idx], self.cam_info.list['timestamp'][idx])
-                    for i in self.cam_info.list['timestamp']:
-                        print i
-                    print
+                    self.output.put((self.cam_info.list['ip'][idx], frame))
                 else:
-                    print '{}: got {} nothing @ {:.6f}'.format(self.name, self.cam_info.list['name'][idx], self.cam_info.list['timestamp'][idx])
-                    for i in self.cam_info.list['timestamp']:
-                        print i
-                    print
-
-            # run model
-            time.sleep(0.5)
+                    pass
         print '{}: stop retrieve'.format(self.name)
 
 
-if __name__ == '__main__':
+def main(args):
 
     # camera list
     cam_info = CameraInfo()
-    cam_info.add_camera(name='camera_1', ip='192.168.1.14', maker='xm')
-    cam_info.add_camera(name='camera_2', ip='192.168.1.15', maker='hik')
+    cam_info.add_camera(name='camera_1', ip='192.168.1.101', maker='xm')
+    cam_info.add_camera(name='camera_2', ip='192.168.1.102', maker='xm')
+    cam_info.add_camera(name='camera_3', ip='192.168.1.103', maker='xm')
+    cam_info.add_camera(name='camera_4', ip='192.168.1.104', maker='xm')
     print cam_info.list
 
-    # camera threads
+    # create camera threads
     cam_threads = list()
     for i in cam_info.list.index:
         cam_threads.append(IPCameraStream(
@@ -93,11 +87,19 @@ if __name__ == '__main__':
             ip=cam_info.list['ip'][i],
             maker=cam_info.list['maker'][i]))
 
-    # retrieve threads
+    # create output queue
+    output_queue = Queue.Queue()
+
+    # create retrieve threads
     retrieve_threads = list()
     table_lock = threading.Lock()
-    for i in xrange(2):
-        retrieve_threads.append(RetrieveFrame(name='retrieve_{}'.format(i+1), lock=table_lock, cam_info=cam_info, cam_threads=cam_threads,))
+    for i in xrange(len(cam_info.list)):
+        retrieve_threads.append(RetrieveFrame(
+            name='retrieve_{}'.format(i+1),
+            lock=table_lock,
+            cam_info=cam_info,
+            cam_threads=cam_threads,
+            output_queue=output_queue))
 
     # initial camera/retrieve threads
     for cam in cam_threads:
@@ -106,7 +108,45 @@ if __name__ == '__main__':
     for retrieve in retrieve_threads:
         retrieve.start()
 
-    time.sleep(3)
+    # show image frames and fps
+    ip_list = cam_info.list['ip']
+    idx = 0
+    frame_count = 0
+    tic = time.time()
+    toc = time.time()
+
+    try:
+        while True:
+            (ip, frame) = output_queue.get()
+
+            if ip == ip_list[idx]:
+                frame = cv2.resize(frame, (0, 0), fx=args.scale, fy=args.scale)
+                cv2.putText(frame, ip, (10, frame.shape[0]-10), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 0, 255), 1)
+                cv2.imshow('frame', frame)
+
+                # calculate fps
+                if toc-tic < 5:
+                    frame_count += 1
+                    toc = time.time()
+                    print '{}: {:5.2f} fps'.format(ip, frame_count/(toc-tic))
+                else:
+                    frame_count = 0
+                    tic = time.time()
+            else:
+                pass
+
+            # hotkeys
+            key = cv2.waitKey(1) & 0xFF
+            if key ==ord('n'):
+                idx += 1
+                idx %= len(ip_list)
+                frame_count = 0
+                tic = time.time()
+            elif key == ord('q'):
+                break
+
+    except KeyboardInterrupt:
+        pass
 
     # stop camera/retrieve threads
     for cam in cam_threads:
@@ -114,3 +154,12 @@ if __name__ == '__main__':
 
     for retrieve in retrieve_threads:
         retrieve.stop = True
+
+
+if __name__ == '__main__':
+    parser = ArgumentParser()
+    parser.add_argument('-s', '--scale', type=float, help='output frame scale: [0.25]', default=0.25)
+
+    args = parser.parse_args()
+
+    main(args)
