@@ -37,13 +37,20 @@ class IPCameraStream(threading.Thread):
 
         self.cam = cv2.VideoCapture(self._url)
         self.stop = False
+        self._new_frame = threading.Event()
 
     def run(self):
         while not self.stop:
-            self.cam.grab()
+            if self.cam.grab():
+                self._new_frame.set()
 
     def read(self):
-        return self.cam.retrieve()
+        if self._new_frame.is_set():
+            ret, frame = self.cam.retrieve()
+            self._new_frame.clear()
+            return ret, frame
+        else:
+            return False, None
 
 class RetrieveFrame(threading.Thread):
 
@@ -61,8 +68,8 @@ class RetrieveFrame(threading.Thread):
             with self.lock:
                 idx = self.cam_info.list['timestamp'].idxmin()
                 ret, frame = self.cam_threads[idx].read()
+                self.cam_info.list.at[idx, 'timestamp'] = time.time()
                 if ret:
-                    self.cam_info.list.at[idx, 'timestamp'] = time.time()
                     self.output.put((self.cam_info.list['ip'][idx], frame))
                 else:
                     pass
@@ -73,10 +80,20 @@ def main(args):
 
     # camera list
     cam_info = CameraInfo()
+
+    # test
     cam_info.add_camera(name='camera_1', ip='192.168.1.101', maker='xm')
     cam_info.add_camera(name='camera_2', ip='192.168.1.102', maker='xm')
-    cam_info.add_camera(name='camera_3', ip='192.168.1.103', maker='xm')
-    cam_info.add_camera(name='camera_4', ip='192.168.1.104', maker='xm')
+    # cam_info.add_camera(name='camera_3', ip='192.168.1.103', maker='xm')
+    # cam_info.add_camera(name='camera_4', ip='192.168.1.104', maker='xm')
+
+    # rongzong
+    # cam_info.add_camera(name='camera_1', ip='192.168.1.11', maker='xm')
+    # cam_info.add_camera(name='camera_2', ip='192.168.1.21', maker='xm')
+    # cam_info.add_camera(name='camera_3', ip='192.168.1.22', maker='xm')
+    # cam_info.add_camera(name='camera_4', ip='192.168.1.23', maker='xm')
+    # cam_info.add_camera(name='camera_5', ip='192.168.1.24', maker='xm')
+
     print cam_info.list
 
     # create camera threads
@@ -91,9 +108,10 @@ def main(args):
     output_queue = Queue.Queue()
 
     # create retrieve threads
+    num_retrieve_threads = 1
     retrieve_threads = list()
     table_lock = threading.Lock()
-    for i in xrange(len(cam_info.list)):
+    for i in xrange(num_retrieve_threads):
         retrieve_threads.append(RetrieveFrame(
             name='retrieve_{}'.format(i+1),
             lock=table_lock,
@@ -125,13 +143,14 @@ def main(args):
                 cv2.imshow('frame', frame)
 
                 # calculate fps
-                if toc-tic < 5:
-                    frame_count += 1
-                    toc = time.time()
-                    print '{}: {:5.2f} fps'.format(ip, frame_count/(toc-tic))
-                else:
-                    frame_count = 0
-                    tic = time.time()
+                if args.fps:
+                    if toc-tic < 5:
+                        frame_count += 1
+                        toc = time.time()
+                        print '{}: {:5.2f} fps'.format(ip, frame_count/(toc-tic))
+                    else:
+                        frame_count = 0
+                        tic = time.time()
             else:
                 pass
 
@@ -140,6 +159,7 @@ def main(args):
             if key ==ord('n'):
                 idx += 1
                 idx %= len(ip_list)
+                print 'Switch to {}:\t{}'.format(cam_info.list['name'][idx], cam_info.list['ip'][idx])
                 frame_count = 0
                 tic = time.time()
             elif key == ord('q'):
@@ -159,6 +179,7 @@ def main(args):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-s', '--scale', type=float, help='output frame scale: [0.25]', default=0.25)
+    parser.add_argument('-f', '--fps', action='store_true', help='print FPS')
 
     args = parser.parse_args()
 
