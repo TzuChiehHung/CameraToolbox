@@ -10,10 +10,13 @@ def main(args):
         url = 'rtsp://{}:554/user=admin&password=&channel={}&stream={}.sdp?'.format(args.ip, args.channel, args.stream)
     elif args.maker == 'hik':
         url = 'rtsp://admin:hk888888@{}:554/Streaming/Channels/001'.format(args.ip)
+    elif args.maker == 'and':
+        url = 'rtsp://{}:8080/video/h264'.format(args.ip)
     else:
         print 'please select correct device maker:'
         print '\t xm:\t XiongMai Tech'
         print '\t hik:\t HIKvision'
+        print '\t and:\t Android Device'
         return
 
     cam = cv2.VideoCapture(url)
@@ -61,7 +64,7 @@ def main(args):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('ip', help='camera ip')
-    parser.add_argument('-m', '--maker', help='device maker: [xm]/hk', default='xm')
+    parser.add_argument('-m', '--maker', help='device maker: [xm]/hk/and', default='xm')
     parser.add_argument('-v', '--visual', action='store_true', help='show image frame')
     parser.add_argument('-s', '--scale', type=float, help='output frame scale: [0.25]', default=0.25)
     parser.add_argument('--channel', type=int, help='rtsp channel', default=1)
