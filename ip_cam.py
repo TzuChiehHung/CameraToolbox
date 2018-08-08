@@ -7,7 +7,7 @@ from time import time
 def main(args):
 
     if args.maker == 'xm':
-        url = 'rtsp://{}:554/user=admin&password=&channel=1&stream=0.sdp?'.format(args.ip)
+        url = 'rtsp://{}:554/user=admin&password=&channel={}&stream={}.sdp?'.format(args.ip, args.channel, args.stream)
     elif args.maker == 'hik':
         url = 'rtsp://admin:hk888888@{}:554/Streaming/Channels/001'.format(args.ip)
     else:
@@ -43,6 +43,8 @@ def main(args):
 
             # Show the resulting frame
             if args.visual:
+                # if args.stream == 1:
+                #     frame = cv2.resize(frame, (int(16*frame.shape[0]/9.), frame.shape[0]))
                 frame = cv2.resize(frame, (0, 0), fx=args.scale, fy=args.scale)
                 cv2.imshow(args.ip, frame)
 
@@ -62,6 +64,8 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--maker', help='device maker: [xm]/hk', default='xm')
     parser.add_argument('-v', '--visual', action='store_true', help='show image frame')
     parser.add_argument('-s', '--scale', type=float, help='output frame scale: [0.25]', default=0.25)
+    parser.add_argument('--channel', type=int, help='rtsp channel', default=1)
+    parser.add_argument('--stream', type=int, help='rtps stream', default=0)
 
     args = parser.parse_args()
 
