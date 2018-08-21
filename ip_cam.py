@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-import cv2
 from argparse import ArgumentParser
 from time import time
+import cv2
 
 def main(args):
 

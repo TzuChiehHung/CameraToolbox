@@ -11,7 +11,8 @@ GREEN = (0, 255, 0)
 BLUE = (255, 0, 0)
 CYAN = (255, 255, 0)
 YELLOW = (0, 255, 255)
-
+ORANGE = (0, 69, 255)
+WHITE = (255, 255, 255)
 
 class FisheyeCalibration():
 
@@ -24,7 +25,8 @@ class FisheyeCalibration():
         self.available_radius = None
         self.current = (0, 0)
         self.ref_points = [] # List of points defining lens circles
-        self.measure_points = []
+        self.delta_pixel = 50
+        self.show_measurement_circle = False
 
     def on_mouse(self, event, x, y, buttons, scale):
         # Mouse callback that gets called for every mouse event (i.e. moving, clicking, etc.)
@@ -35,16 +37,13 @@ class FisheyeCalibration():
             pt = tuple(np.round(np.array([x, y])/args.scale).astype(int))
             print 'Adding reference point #{} with position ({}, {})'.format(len(self.ref_points)+1, pt[0], pt[1])
             self.ref_points.append(pt)
-        if event == cv2.EVENT_RBUTTONDOWN:
-            if self.geometry_done:
-                pt = tuple(np.round(np.array([x, y])/args.scale).astype(int))
-                self.measure_points.append(pt)
 
     def draw_measurement_circle(self, frame):
-        if self.geometry_done and self.measure_points:
-            for pt in self.measure_points:
-                radius = np.round(np.linalg.norm(np.array(self.lens_center) - np.array(pt))).astype(int)
+        if self.geometry_done and self.show_measurement_circle:
+            for i in xrange(self.lens_radius/self.delta_pixel):
+                radius = self.delta_pixel*(i+1)
                 self._draw_circle(frame, self.lens_center, radius, color=YELLOW, thickness=2)
+                cv2.putText(frame, str(radius), (self.lens_center[0], self.lens_center[1]+radius), cv2.FONT_HERSHEY_COMPLEX, 1, ORANGE, 1)
         return frame
 
     def draw_available_circle(self, frame):
@@ -69,13 +68,6 @@ class FisheyeCalibration():
             string = 'Lens radius: {}'.format(self.lens_radius)
             cv2.putText(frame, string, (10, 30), cv2.FONT_HERSHEY_COMPLEX, 1, GREEN, 1)
         return frame
-
-    def delete_last_measure_point(self):
-        if self.measure_points:
-            self.measure_points.remove(self.measure_points[-1])
-
-    def clear_measure_point(self):
-        self.measure_points = []
 
     def get_ref_points(self, frame):
         if not self.frame_size:
@@ -131,7 +123,6 @@ class FisheyeCalibration():
         else:
             pass
 
-
 def main(args):
 
     # camera thread
@@ -140,18 +131,26 @@ def main(args):
 
     cal = FisheyeCalibration()
 
+    print 'Hotkeys List:'
+    print '\tm: measurement circle (on/off)'
+    print '\ts: save original image'
+    print '\tp: save rendered image'
+    print '\tq: exit'
+
     try:
         cv2.namedWindow(args.ip)
         cv2.setMouseCallback(args.ip, cal.on_mouse, args.scale)
         while True:
             # Capture frame-by-frame
-            ret, ori_frame = cam.read()
+            ret, raw = cam.read()
 
             if ret:
-                frame = ori_frame.copy()
+                ori_frame = raw.copy()
+                frame = raw.copy()
+                cv2.putText(frame, args.ip, (10, frame.shape[0]-10), cv2.FONT_HERSHEY_COMPLEX, 1, WHITE, 1)
                 cal.get_ref_points(frame)
 
-                 # TODO calibrate
+                 # TODO calibration
 
                 if cal.get_lens_geometry():
                     frame = cal.draw_lens_circle(frame)
@@ -164,17 +163,24 @@ def main(args):
 
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
+                cam.stop = True
                 break
-            elif key == ord('d'):
-                cal.delete_last_measure_point()
-            elif key == ord('r'):
-                cal.clear_measure_point()
+            elif key ==ord('m'):
+                cal.show_measurement_circle = not cal.show_measurement_circle
             elif key == ord('s'):
                 directory = './calibration'
                 if not os.path.exists(directory):
                     os.makedirs(directory)
                 fn = os.path.join(directory, '{}.png'.format(uuid().hex))
                 cv2.imwrite(fn, ori_frame)
+                print 'Save original image: {}'.format(fn)
+            elif key == ord('p'):
+                directory = './screenshot'
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
+                fn = os.path.join(directory, '{}.png'.format(uuid().hex))
+                cv2.imwrite(fn, frame)
+                print 'Save rendered image: {}'.format(fn)
     except KeyboardInterrupt:
         print '\nKeyboardInterrupt'
         pass
@@ -186,7 +192,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('ip', help='camera ip')
     parser.add_argument('-m', '--maker', help='device maker: [xm]/hk', default='xm')
-    parser.add_argument('-s', '--scale', type=float, help='output frame scale: [0.25]', default=1.0)
+    parser.add_argument('-s', '--scale', type=float, help='output frame scale: [1.0]', default=1.0)
 
     args = parser.parse_args()
 
