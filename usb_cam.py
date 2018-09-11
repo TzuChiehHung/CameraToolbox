@@ -13,7 +13,7 @@ def main(args):
     elif args.codec == 'MJPG':
         cam.set(cv2.CAP_PROP_FOURCC, 0x47504A4D)
     else:
-        print 'use default codec: YUY2'
+        print 'use default video codec.'
 
     if args.resolution:
         cam.set(cv2.CAP_PROP_FRAME_WIDTH, args.resolution[0])
@@ -47,7 +47,7 @@ def main(args):
                 frame = cv2.resize(frame, (0, 0), fx=args.scale, fy=args.scale)
                 cv2.imshow('/dev/video{}'.format(args.device), frame)
 
-                if cv2.waitKey(1) == ord('q'):
+                if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
     except KeyboardInterrupt:
         print '\nKeyboardInterrupt'
@@ -59,8 +59,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('-d', '--device', help='device number: /dev/video#', default=0)
-    parser.add_argument('-c', '--codec', help='codec: MJPG/[YUY2]', default='YUY2')
+    parser.add_argument('-d', '--device', help='device number: /dev/video#', type=int, default=0)
+    parser.add_argument('-c', '--codec', help='video codec: MJPG/YUY2')
     parser.add_argument('-v', '--visual', action='store_true', dest='visual', help='Show image frame')
     parser.add_argument('-r', '--resolution', nargs='+', type=float, help='resolution: w, h')
     parser.add_argument('-s', '--scale', type=float, help='output frame scale: [0.25]', default=0.25)

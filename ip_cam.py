@@ -51,7 +51,7 @@ def main(args):
                 frame = cv2.resize(frame, (0, 0), fx=args.scale, fy=args.scale)
                 cv2.imshow(args.ip, frame)
 
-                if cv2.waitKey(1) == ord('q'):
+                if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
     except KeyboardInterrupt:
         print '\nKeyboardInterrupt'
